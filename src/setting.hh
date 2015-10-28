@@ -1,8 +1,8 @@
 #include <cmath>
 
-#define J 3
-#define D 2
-#defile C 5
-#define I ((((int)(pow(J,D)))-1)/(J-1))
-#defile NONLEAF ((((int)(pow(J,D-1)))-1)/(J-1))
-#define MAX_H (2**J)
+#define MAX_CHILD 3
+#define TREE_DEPTH 2
+#define MAX_COPY 5
+#define MAX_SUBTYPE ((((int)(pow(MAX_CHILD,TREE_DEPTH)))-1)/(MAX_CHILD-1))
+#define NONLEAF ((((int)(pow(MAX_CHILD,TREE_DEPTH-1)))-1)/(MAX_CHILD-1))
+#define MAX_H ((int)(pow(2,MAX_CHILD)))
