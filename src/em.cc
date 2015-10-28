@@ -2,6 +2,10 @@
 #include "lbfgsb.hpp"
 using namespace std;
 
+int MAX_SUBTYPE ((((int)(pow(MAX_CHILD,TREE_DEPTH)))-1)/(MAX_CHILD-1));
+int NONLEAF ((((int)(pow(MAX_CHILD,TREE_DEPTH-1)))-1)/(MAX_CHILD-1));
+int MAX_H ((int)(pow(2,MAX_CHILD)));
+
 // params::params(std::vector<double> _u, std::vector<std::vector<double> > _beta, double* _pi, double** _kappa, std::vector<double> _xi, std::vector<double> _omega, std::vector<double> _beta_tilda)
 // {
 // }
@@ -597,13 +601,13 @@ void maximization(params pa_old, params new_pa, hyperparams hpa, READS res, Lbfg
 
 void init_params(params pa)
 {
-  for (int i=2; i<=MAX_SUBTYPE; ++i)
-    pa.u[i] = 0.5;
+  pa.u.resize(MAX_SUBTYPE + 1, 0.5);
+  // for (int i=2; i<=MAX_SUBTYPE; ++i)
+  //   pa.u[i] = 0.5;
 
-  pa.beta[0][0] = 0.5;
-  for (int i=1; i<=NONLEAF; ++i)
-    for (int j=0; j<MAX_CHILD; ++j)
-      pa.beta[i][j] = 0.5;
+  pa.beta.resize(NONLEAF + 1);
+  for (int i=0; i<=NONLEAF; ++i)
+    pa.beta[i].resize(MAX_CHILD, 0.5);
 
   for (int c=1; c<=MAX_COPY; ++c)
     pa.pi[c] = 1.0 / MAX_COPY;
@@ -612,14 +616,11 @@ void init_params(params pa)
     for (int d=1; d<=c; ++d)
       pa.kappa[c][d] = 1.0 / c;
 
-  for (int i=1; i<=MAX_SUBTYPE; ++i)
-    pa.xi[i] = 1.0 / MAX_SUBTYPE;
+  pa.xi.resize(MAX_SUBTYPE, 1.0);
 
-  for (int h=0; h<MAX_H; ++h)
-    pa.omega[h] = 1.0 / MAX_H;
+  pa.omega.resize(MAX_H, 1.0);
 
-  for (int i=1; i<=MAX_SUBTYPE; ++i)
-    pa.beta_tilda[i] = 0.5;
+  pa.beta_tilda.resize(MAX_SUBTYPE, 0.5);
 
   return;
 }
@@ -739,24 +740,25 @@ int main(int argc, char* argv[]) {
   int em_maxit = 10;
   double em_eps = 1.0e-1;
   
-  params pa_old; // pa_old initialization is needed
-  init_params(pa_old);
+  params* pa_old = new params; // pa_old initialization is needed
+  init_params(*pa_old);
   
-  params pa_new;
-  hyperparams hpa; // hpa initialization is needed
-  init_hyperparams(hpa);
+  params* pa_new = new params;
+  hyperparams* hpa = new hyperparams; // hpa initialization is needed
+  init_hyperparams(*hpa);
   
   for (int i=0; i<em_maxit; ++i)
     {
-      maximization(pa_old, pa_new, hpa, res, minimizer); // res io is needed
-      if (check_converge(pa_new, pa_old, em_eps)) // distance implementation is needed
+      maximization(*pa_old, *pa_new, *hpa, res, minimizer); // res io is needed
+      if (check_converge(*pa_new, *pa_old, em_eps)) // distance implementation is needed
         break;
-      pa_old = pa_new;
+      *pa_old = *pa_new;
+      // delete pa_new;
     }
 
   ofstream outfile;
   outfile.open("optimized_params.txt");
-  write_params(outfile, pa_new);
+  write_params(outfile, *pa_new);
   outfile.close();
   
   return 0;
