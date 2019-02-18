@@ -1,7 +1,8 @@
 CXX = g++
 
-%: %.cc
-	$(CXX) -I/usr/local/Cellar/boost/1.58.0/include/ -Wall -g -o $@ $< -lm
+%: %.cc grad3.hh setting.hh
+	$(CXX) -I/usr/local/include -L/usr/local/lib -g -o $@ $< -lgsl -lgslcblas -lm
+	# $(CXX) -I/usr/local/Cellar/boost/1.58.0/include/ -g -o $@ $< -lm
 
 .PHONY: check-syntax
 

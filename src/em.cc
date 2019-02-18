@@ -2,13 +2,15 @@
 #include "lbfgsb.hpp"
 using namespace std;
 
-int MAX_SUBTYPE ((((int)(pow(MAX_CHILD,TREE_DEPTH)))-1)/(MAX_CHILD-1));
-int NONLEAF ((((int)(pow(MAX_CHILD,TREE_DEPTH-1)))-1)/(MAX_CHILD-1));
-int MAX_H ((int)(pow(2,MAX_CHILD)));
-
 // params::params(std::vector<double> _u, std::vector<std::vector<double> > _beta, double* _pi, double** _kappa, std::vector<double> _xi, std::vector<double> _omega, std::vector<double> _beta_tilda)
 // {
 // }
+
+void init_state(state* st)
+{
+  st->l.assign(MAX_SUBTYPE, 0);
+  st->r.assign(MAX_SUBTYPE, 0);
+}
 
 bool ancestor(int i, int q)
 {
@@ -33,7 +35,7 @@ double calc_t(int i, std::vector<double> u)
   return u[i] * calc_t(i - 1, u);
 }
 
-double calc_nu(int i, std::vector<std::vector<double> > beta)
+double calc_nu(int i, params pa)
 {
   // when MAX_CHILD = 3
   // if (i % MAX_CHILD == 2)
@@ -53,23 +55,23 @@ double calc_nu(int i, std::vector<std::vector<double> > beta)
   double coef = 1;
 
   for (int k=0; k<=remainder; ++k)
-    coef *= 1 - beta[parent][k];
+    coef *= 1 - pa.beta[parent][k];
 
   if (remainder < MAX_CHILD - 1)
-    coef *= beta[parent][remainder+1];
+    coef *= pa.beta[parent][remainder+1];
   
-  return calc_nu(parent, beta) * coef;
+  return calc_nu(parent, pa) * coef;
 }
 
-double calc_n(int i, std::vector<std::vector<double> > beta)
+double calc_n(int i, params pa)
 {
-  return calc_nu(i, beta) * beta[i][0];
+  return calc_nu(i, pa) * pa.beta[i][0];
 }
 
-void calc_n_all(std::vector<double> n, std::vector<std::vector<double> > beta)
+void calc_n_all(std::vector<double> n, params pa)
 {
   for (int i=0; i<=MAX_SUBTYPE; ++i)
-    n[i] = calc_n(i, beta);
+    n[i] = calc_n(i, pa);
   return;
 }
 
@@ -180,7 +182,7 @@ double llik(READS res, states sts, params pa, hyperparams hpa)
   int count = 0;
   for (std::vector<state>::iterator st = sts.begin(); st != sts.end(); ++st)
     {
-      READ re = res[count];
+      READ* re = res[count];
       double a = 0;
       
       for (int i=1; i<=MAX_SUBTYPE; ++i)
@@ -189,8 +191,8 @@ double llik(READS res, states sts, params pa, hyperparams hpa)
       a += log(pa.xi[st->q] * pa.omega[st->h]);
 
       std::vector<double> n(MAX_SUBTYPE+1, 0);
-      calc_n_all(n, pa.beta);
-      a += log(variant_fraction(st->s, st->h, st->q, n[st->q], calc_t(st->q, pa.u), pa.beta_tilda[st->q]) * read_prob(re, *st, n, hpa.epsilon));
+      calc_n_all(n, pa);
+      a += log(variant_fraction(st->s, st->h, st->q, n[st->q], calc_t(st->q, pa.u), pa.beta_tilda[st->q]) * read_prob(*re, *st, n, hpa.epsilon));
 
       sum += a;
       count++;
@@ -228,7 +230,7 @@ double dllk_dui(states sts, params pa, hyperparams hpa, int i)
       if (qk_parent == i_parent && i <= qk_prev_parent)
         {
           double tq = calc_t(st->q, pa.u);
-          double nq = calc_n(st->q, pa.beta);
+          double nq = calc_n(st->q, pa);
           sum += tq * d_t_variant_fraction(st->s, st->h, st->q, nq, tq, pa.beta_tilda[st->q]) / variant_fraction(st->s, st->h, st->q, nq, tq, pa.beta_tilda[st->q]) / pa.u[i];
         }
     }
@@ -311,7 +313,7 @@ double dllik_dbeta(READS res, states sts, params pa, hyperparams hpa, int i, int
     {
       double tq = calc_t(st->q, pa.u);
 
-      calc_n_all(n, pa.beta);
+      calc_n_all(n, pa);
 
       sum += d_n_variant_fraction(st->s, st->h, st->q, n[st->q], tq, pa.beta_tilda[st->q]) / variant_fraction(st->s, st->h, st->q, n[st->q], tq, pa.beta_tilda[st->q]);
 
@@ -321,7 +323,7 @@ double dllik_dbeta(READS res, states sts, params pa, hyperparams hpa, int i, int
       
       for (int y=i; y<=MAX_SUBTYPE; ++y)
         {
-          double factor = n[y] * dmu_dny(*st, n, hpa.epsilon, y) * dreadprob_dmu(*re, mu);
+          double factor = n[y] * dmu_dny(*st, n, hpa.epsilon, y) * dreadprob_dmu(**re, mu);
 
           int l = -1;
           if ((l = child_order(i, y)) >= 0)
@@ -348,25 +350,25 @@ double dllik_dbeta(READS res, states sts, params pa, hyperparams hpa, int i, int
             }
 
         }
-      sum += acc / read_prob(*re, *st, n, hpa.epsilon);
+      sum += acc / read_prob(**re, *st, n, hpa.epsilon);
       ++st;
     }
   return sum;
 }
 
 
-double responsibility_numerator(state st, params pa_old, hyperparams hpa, READ re, std::vector<double> n)
+double responsibility_numerator(state st, params* pa_old, hyperparams hpa, READ re, std::vector<double> n)
 {
   double product = 1;
   
   for (int i=1; i<MAX_SUBTYPE; i++)
-    product *= pa_old.pi[st.l[i]] * pa_old.kappa[st.l[i]][st.r[i]];
-  product *= pa_old.xi[st.q] * pa_old.omega[st.h] * variant_fraction(st.s, st.h, st.q, n[st.q], calc_t(st.q, pa_old.u), pa_old.beta_tilda[st.q]) * read_prob(re, st, n, hpa.epsilon);
+    product *= pa_old->pi[st.l[i]] * pa_old->kappa[st.l[i]][st.r[i]];
+  product *= pa_old->xi[st.q] * pa_old->omega[st.h] * variant_fraction(st.s, st.h, st.q, n[st.q], calc_t(st.q, pa_old->u), pa_old->beta_tilda[st.q]) * read_prob(re, st, n, hpa.epsilon);
   
   return product;
 }
 
-double responsibility_partition_k(state curr_st, params pa_old, hyperparams hpa, READ re, std::vector<double> n)
+double responsibility_partition_k(state curr_st, params* pa_old, hyperparams hpa, READ re, std::vector<double> n)
 {
   double a = 0;
   
@@ -381,16 +383,16 @@ double responsibility_partition_k(state curr_st, params pa_old, hyperparams hpa,
           for (int s=0; s<FRACTIONS; ++s)
             {
               curr_st.s = ((double)s) / FRACTIONS;
-              c += variant_fraction(curr_st.s, curr_st.h, curr_st.q, n[curr_st.q], calc_t(curr_st.q, pa_old.u), pa_old.beta_tilda[curr_st.q]) * read_prob(re, curr_st, n, hpa.epsilon);
+              c += variant_fraction(curr_st.s, curr_st.h, curr_st.q, n[curr_st.q], calc_t(curr_st.q, pa_old->u), pa_old->beta_tilda[curr_st.q]) * read_prob(re, curr_st, n, hpa.epsilon);
             }
-          b += pa_old.omega[curr_st.h] * c;
+          b += pa_old->omega[curr_st.h] * c;
         }
-      a += pa_old.xi[curr_st.q] * b;
+      a += pa_old->xi[curr_st.q] * b;
     }
   return a;
 }
 
-double responsibility_partition_subtype(state curr_st, params pa_old, hyperparams hpa, READ re, int curr_subtype, std::vector<double> n)
+double responsibility_partition_subtype(state curr_st, params* pa_old, hyperparams hpa, READ re, int curr_subtype, std::vector<double> n)
 {
   if (curr_subtype > MAX_SUBTYPE)
     return responsibility_partition_k(curr_st, pa_old, hpa, re, n);
@@ -403,25 +405,25 @@ double responsibility_partition_subtype(state curr_st, params pa_old, hyperparam
 
       for (curr_st.r[curr_subtype] = 0; curr_st.r[curr_subtype] < curr_st.l[curr_subtype]; ++curr_st.r[curr_subtype])
         {
-          s += pa_old.kappa[curr_st.l[curr_subtype]][curr_st.r[curr_subtype]] * responsibility_partition_subtype(curr_st, pa_old, hpa, re, curr_subtype, n);
-          curr_subtype++;
+          s += pa_old->kappa[curr_st.l[curr_subtype]][curr_st.r[curr_subtype]] * responsibility_partition_subtype(curr_st, pa_old, hpa, re, curr_subtype + 1, n);
         }
-      t += pa_old.pi[curr_st.l[curr_subtype]] * s;
+      t += pa_old->pi[curr_st.l[curr_subtype]] * s;
     }
   return t;
 }
 
-double responsibility_partition(params pa_old, hyperparams hpa, READ re, std::vector<double> n)
+double responsibility_partition(params* pa_old, hyperparams hpa, READ re, std::vector<double> n)
 {
-  state curr_st;
-  
-  curr_st.l[0] = 2;
-  curr_st.r[0] = 0;
+  state* curr_st = new state;
+  init_state(curr_st);
+
+  curr_st->l[0] = 2;
+  curr_st->r[0] = 0;
       
-  return responsibility_partition_subtype(curr_st, pa_old, hpa, re, 1, n);
+  return responsibility_partition_subtype(*curr_st, pa_old, hpa, re, 1, n);
 }
 
-void responsibility_k(states sts, state curr_st, params pa_old, hyperparams hpa, READ re, double resp_part, std::vector<double> n)
+void responsibility_k(states sts, state curr_st, params* pa_old, hyperparams hpa, READ re, double resp_part, std::vector<double> n)
 {
   for (curr_st.q = 1; curr_st.q < MAX_SUBTYPE; ++curr_st.q)
     {
@@ -430,7 +432,8 @@ void responsibility_k(states sts, state curr_st, params pa_old, hyperparams hpa,
           for (int s=0; s<FRACTIONS; ++s)
             {
               state* st = new state;
-              
+              init_state(st);
+
               st->k = curr_st.k;
 
               for (int i=1; i<=MAX_SUBTYPE; ++i)
@@ -450,7 +453,7 @@ void responsibility_k(states sts, state curr_st, params pa_old, hyperparams hpa,
     }
 }
 
-void responsibility_subtype(states sts, state curr_st, params pa_old, hyperparams hpa, READ re, double resp_part, int curr_subtype, std::vector<double> n)
+void responsibility_subtype(states sts, state curr_st, params* pa_old, hyperparams hpa, READ re, double resp_part, int curr_subtype, std::vector<double> n)
 {
   if (curr_subtype > MAX_SUBTYPE)
     return;
@@ -465,21 +468,22 @@ void responsibility_subtype(states sts, state curr_st, params pa_old, hyperparam
   return;
 }
 
-void responsibility(states sts, params pa_old, hyperparams hpa, READS res)
+void responsibility(states sts, params* pa_old, hyperparams hpa, READS res)
 {
-  state curr_st;
-
-  curr_st.l[0] = 2;
-  curr_st.r[0] = 0;
+  state* curr_st = new state;
+  init_state(curr_st);
+  
+  curr_st->l[0] = 2;
+  curr_st->r[0] = 0;
 
   std::vector<double> n(MAX_SUBTYPE+1, 0);
-  calc_n_all(n, pa_old.beta);
+  calc_n_all(n, *pa_old);
 
   for (READS::iterator re = res.begin(); re != res.end(); ++re)
     {
-      double resp_part = responsibility_partition(pa_old, hpa, *re, n);
+      double resp_part = responsibility_partition(pa_old, hpa, **re, n);
       
-      responsibility_subtype(sts, curr_st, pa_old, hpa, *re, resp_part, 1, n);
+      responsibility_subtype(sts, *curr_st, pa_old, hpa, **re, resp_part, 1, n);
     }
   return;
 }
@@ -518,19 +522,19 @@ struct ComputePdubeta {
   int    _count;
 };
 
-void maximization(params pa_old, params new_pa, hyperparams hpa, READS res, Lbfgsb minimizer)
+void maximization(params* pa_old, params* pa_new, hyperparams hpa, READS res, Lbfgsb minimizer)
 {
-  states sts;
-  responsibility(sts, pa_old, hpa, res);
+  states* sts = new states;
+  responsibility(*sts, pa_old, hpa, res);
 
   double partition = 0;
-  for (std::vector<state>::iterator st = sts.begin(); st != sts.end(); ++st)
+  for (std::vector<state>::iterator st = sts->begin(); st != sts->end(); ++st)
     partition += st->resp;
 
   double pi_numerator[MAX_COPY+1];
   for (int l=1; l<=MAX_COPY; ++l)
     {
-      for (std::vector<state>::iterator st = sts.begin(); st != sts.end(); ++st)
+      for (std::vector<state>::iterator st = sts->begin(); st != sts->end(); ++st)
         {
           int count = 0;
           for (int i=1; i<=MAX_SUBTYPE; ++i)
@@ -540,7 +544,7 @@ void maximization(params pa_old, params new_pa, hyperparams hpa, READS res, Lbfg
             }
           pi_numerator[l] += count * st->resp;
         }
-      new_pa.pi[l] = pi_numerator[l] / partition / MAX_SUBTYPE;
+      pa_new->pi[l] = pi_numerator[l] / partition / MAX_SUBTYPE;
     }
 
   double kappa_numerator[MAX_COPY][MAX_COPY];
@@ -548,7 +552,7 @@ void maximization(params pa_old, params new_pa, hyperparams hpa, READS res, Lbfg
     {
       for (int r=1; r<=l; ++r)
         {
-          for (std::vector<state>::iterator st = sts.begin(); st != sts.end(); ++st)
+          for (std::vector<state>::iterator st = sts->begin(); st != sts->end(); ++st)
             {
               int count = 0;
               for (int i=1; i<=MAX_SUBTYPE; ++i)
@@ -558,80 +562,80 @@ void maximization(params pa_old, params new_pa, hyperparams hpa, READS res, Lbfg
                 }
               kappa_numerator[l][r] += count * st->resp;
             }
-          new_pa.kappa[l][r] = kappa_numerator[l][r] / pi_numerator[l];
+          pa_new->kappa[l][r] = kappa_numerator[l][r] / pi_numerator[l];
         }
     }
 
   double xi_numerator[MAX_SUBTYPE+1];
   for (int q=1; q<=MAX_SUBTYPE; ++q)
     {
-      for (std::vector<state>::iterator st = sts.begin(); st != sts.end(); ++st)
+      for (std::vector<state>::iterator st = sts->begin(); st != sts->end(); ++st)
         {
           if (st->q == q)
             xi_numerator[q] += st->resp;
         }
-      new_pa.xi[q] = xi_numerator[q] / partition;
+      pa_new->xi[q] = xi_numerator[q] / partition;
     }
 
   double omega_numerator[MAX_H];
   for (int h=0; h<MAX_H; ++h)
     {
-      for (std::vector<state>::iterator st = sts.begin(); st != sts.end(); ++st)
+      for (std::vector<state>::iterator st = sts->begin(); st != sts->end(); ++st)
         {
           if (st->h == h)
-            xi_numerator[h] += st->resp;
+            omega_numerator[h] += st->resp;
         }
-      new_pa.omega[h] = omega_numerator[h] / partition;
+      pa_new->omega[h] = omega_numerator[h] / partition;
     }
 
-  minimizer.minimize(minimizer.best_x(), ComputePdubeta(res, sts, new_pa, hpa));
+  minimizer.minimize(minimizer.best_x(), ComputePdubeta(res, *sts, *pa_new, hpa));
   cout << "iter:" << minimizer.iter() << ",best_fn:" << minimizer.best_fn() << ",best_x:";
   const vector<double>& x = minimizer.best_x();
   for (int i = 0; i < (int)x.size(); ++i) { cout << x[i] << ",";}
   cout << endl;
 
   for (int i=2; i<=MAX_SUBTYPE; ++i)
-    new_pa.u[i] = x[i-2];
-  new_pa.beta[0][0] = x[MAX_SUBTYPE-1];
+    pa_new->u[i] = x[i-2];
+  pa_new->beta[0][0] = x[MAX_SUBTYPE-1];
   
   for (int i=1; i<=NONLEAF; ++i)
     for (int j=0; j<MAX_CHILD; ++j)
-      new_pa.beta[i][j] = x[MAX_SUBTYPE + MAX_CHILD*(i-1) + j];
+      pa_new->beta[i][j] = x[MAX_SUBTYPE + MAX_CHILD*(i-1) + j];
 }
 
-void init_params(params pa)
+void init_params(params* pa)
 {
-  pa.u.resize(MAX_SUBTYPE + 1, 0.5);
+  pa->u.assign(MAX_SUBTYPE + 1, 0.5);
   // for (int i=2; i<=MAX_SUBTYPE; ++i)
-  //   pa.u[i] = 0.5;
+  //   pa->u[i] = 0.5;
 
-  pa.beta.resize(NONLEAF + 1);
-  for (int i=0; i<=NONLEAF; ++i)
-    pa.beta[i].resize(MAX_CHILD, 0.5);
+  pa->beta.assign(NONLEAF + 1, std::vector<double>(MAX_CHILD, 0.5));
+    
+  pa->xi.assign(MAX_SUBTYPE, 1.0/MAX_SUBTYPE);
+  
+  pa->omega.assign(MAX_H, 1.0/MAX_H);
 
+  pa->beta_tilda.assign(MAX_SUBTYPE, 0.5);
+
+  pa->pi.assign(MAX_COPY + 1, 1.0/MAX_COPY);
+
+  pa->kappa.assign(MAX_COPY + 1, std::vector<double>(MAX_COPY + 1, 1.0));
   for (int c=1; c<=MAX_COPY; ++c)
-    pa.pi[c] = 1.0 / MAX_COPY;
-
-  for (int c=1; c<=MAX_COPY; ++c)
-    for (int d=1; d<=c; ++d)
-      pa.kappa[c][d] = 1.0 / c;
-
-  pa.xi.resize(MAX_SUBTYPE, 1.0);
-
-  pa.omega.resize(MAX_H, 1.0);
-
-  pa.beta_tilda.resize(MAX_SUBTYPE, 0.5);
+    {
+      for (int d=1; d<=c; ++d)
+        pa->kappa[c][d] = 1.0/c;
+    }
 
   return;
 }
 
-void init_hyperparams(hyperparams hpa)
+void init_hyperparams(hyperparams* hpa)
 {
-  hpa.au = 2;
-  hpa.bu = 2;
-  hpa.abeta = 2;
-  hpa.bbeta = 2;
-  hpa.epsilon = 0.05;
+  hpa->au = 2;
+  hpa->bu = 2;
+  hpa->abeta = 2;
+  hpa->bbeta = 2;
+  hpa->epsilon = 0.05;
   
   return;
 }
@@ -723,12 +727,13 @@ int main(int argc, char* argv[]) {
   ifstream infile;
   infile.open("reads.txt");
 
-  READS res;
-  while(!infile.eof())
+  READS* res = new READS;
+  while(true)
     {
-      READ re;
-      infile >> re.first >> re.second;
-      res.push_back(re);
+      READ* re = new READ;
+      infile >> re->first >> re->second;
+      if (infile.eof()) break;
+      res->push_back(re);
     }
   infile.close();
   
@@ -741,15 +746,15 @@ int main(int argc, char* argv[]) {
   double em_eps = 1.0e-1;
   
   params* pa_old = new params; // pa_old initialization is needed
-  init_params(*pa_old);
+  init_params(pa_old);
   
   params* pa_new = new params;
   hyperparams* hpa = new hyperparams; // hpa initialization is needed
-  init_hyperparams(*hpa);
+  init_hyperparams(hpa);
   
   for (int i=0; i<em_maxit; ++i)
     {
-      maximization(*pa_old, *pa_new, *hpa, res, minimizer); // res io is needed
+      maximization(pa_old, pa_new, *hpa, *res, minimizer); // res io is needed
       if (check_converge(*pa_new, *pa_old, em_eps)) // distance implementation is needed
         break;
       *pa_old = *pa_new;

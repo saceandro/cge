@@ -11,7 +11,7 @@
 #define calc_remainder(i) (((i) + MAX_CHILD - 2) % MAX_CHILD)
 
 typedef std::pair<int,int> READ;
-typedef std::vector<READ> READS;
+typedef std::vector< READ* > READS;
 
 class state 
 {
@@ -35,8 +35,8 @@ class params
 public:
   std::vector<double> u;
   std::vector<std::vector<double> > beta;
-  double pi[MAX_COPY];
-  double kappa[MAX_COPY][MAX_COPY];
+  std::vector<double> pi;
+  std::vector<std::vector<double> > kappa;
   std::vector<double> xi;
   std::vector<double> omega;
   std::vector<double> beta_tilda;
