@@ -1,0 +1,50 @@
+set term postscript enhanced eps color
+set xlabel "x_q"
+set ylabel "dp(x_q)/dt_q"
+st = 1
+to = 10
+offset = 1
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_t_h0_betatilda%d.eps", i)
+    plot for [j = st : to : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_t_h0_betatilda%d_t%d", i, j) u 1:2 w lp title sprintf("betatilda_q: %.1f,\tt_q: %.1f", 0.1*i, 0.1*j)
+    set output
+    }
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_t_h1_betatilda%d.eps", i)
+    plot for [j = st : to-1 : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_t_h1_betatilda%d_t%d", i, j) u 1:2 w lp title sprintf("betatilda_q: %.1f,\tt_q: %.1f", 0.1*i, 0.1*j)
+    set output
+    }
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_t_h1_t%d.eps", i)
+    plot for [j = st : to-1 : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_t_h1_t%d_t_h%d", i, j) u 1:2 w lp title sprintf("t_q: %.1f,\tt_q_h: %.4f", 0.1*i, 0.01*i*j)
+    set output
+    }
+
+set ylabel "dp(x_q)/dt_{q_h}"
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_t_h_h1_betatilda%d.eps", i)
+    plot for [j = st : to-1 : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_t_h_h1_betatilda%d_t_h%d", i, j) u 1:2 w lp title sprintf("betatilda_q: %.1f,\tt_q_h: %.1f", 0.1*i, 0.05*j)
+    set output
+    }
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_t_h_h1_t%d.eps", i)
+    plot for [j = st : to-1 : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_t_h_h1_t%d_t_h%d", i, j) u 1:2 w lp title sprintf("t_q: %.1f,\tt_q_h: %.4f", 0.1*i, 0.01*i*j)
+    set output
+    }
+
+set ylabel "dp(x_q)/dn_q"
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_n_h0_betatilda%d.eps", i)
+    plot for [j = st : to : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_n_h0_betatilda%d_n%d", i, j) u 1:2 w lp title sprintf("betatilda_q: %.1f,\tn_q: %.1f", 0.1*i, 0.1*j)
+    set output
+}
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_n_h1_betatilda%d.eps", i)
+    plot for [j = st : to : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_n_h1_betatilda%d_n%d", i, j) u 1:2 w lp title sprintf("betatilda_q: %.1f,\tn_q: %.1f", 0.1*i, 0.1*j)
+    set output
+}
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_numdiff2_plot/variant_fraction_numdiff2_n_h1_t%d.eps", i)
+    plot for [j = st : to-1 : offset] sprintf("./variant_fraction_numdiff2_data/variant_fraction_numdiff2_n_h1_t%d_t_h%d", i, j) u 1:2 w lp title sprintf("t_q: %.1f,\tt_q_h: %.4f", 0.1*i, 0.01*i*j)
+    set output
+    }

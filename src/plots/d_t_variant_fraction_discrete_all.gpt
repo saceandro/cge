@@ -1,0 +1,11 @@
+set term postscript enhanced eps color
+set xlabel "x_q"
+set ylabel "dp(x_q)/dt_q"
+st = 1
+to = 10
+offset = 1
+do for[i = st : to : offset]{
+    set output sprintf("d_t_variant_fraction_discrete_all_h0_betatilda%d.eps", i)
+    plot for [j = st : to : offset] sprintf("d_t_variant_fraction_discrete_all_h0_betatilda%d_t%d", i, j) every ::st u 1:2 w lp title sprintf("betatilda_q: %.1f,\tt_q: %.1f", 0.1*i, 0.1*j)
+    set output
+}

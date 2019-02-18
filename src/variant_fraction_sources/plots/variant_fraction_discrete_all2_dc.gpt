@@ -1,0 +1,17 @@
+set term postscript enhanced eps color
+set xlabel "x"
+set ylabel "p(x_q)"
+set yrange [0.0:1.0]
+st = 1
+to = 10
+offset = 1
+do for[i = st : to : offset]{
+    set output sprintf("./variant_fraction_discrete_all2_plot_dc/variant_fraction_discrete_all2_h0_betatilda%d_dc.eps", i)
+    plot for [j = st : to : offset] sprintf("./variant_fraction_discrete_all2_data/variant_fraction_discrete_all2_h0_betatilda%d_t%d", i, j) every ::st u 1:2 w lp title sprintf("beta_q: %.1f,\t_qt: %.1f", 0.1*i, 0.1*j)
+    set output
+}
+do for[j = st : to : offset]{
+set output sprintf("./variant_fraction_discrete_all2_plot_dc/variant_fraction_discrete_all2_h1_t%d_dc.eps", j, k)
+plot for [k = 0 : 9 : offset] sprintf("./variant_fraction_discrete_all2_data/variant_fraction_discrete_all2_h1_t%d_t_h%d", j, k) u 1:2 w lp title sprintf("betatilda_q: %.1f,\tt_q: %.1f,\tt_q_h: %.4f", 0.5, 0.1*j, 0.01*j*k)
+set output
+}
